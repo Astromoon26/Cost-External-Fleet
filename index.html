@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>External Fleet Cost — NDC Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg:        #070a0f;
+  --surface:   #0b0f16;
+  --card:      #0f1520;
+  --card2:     #131a26;
+  --border:    #1a2235;
+  --border2:   #222d40;
+  --accent:    #f0a500;
+  --accent2:   #c47800;
+  --red:       #e84040;
+  --green:     #28c76f;
+  --blue:      #3b9de8;
+  --cyan:      #00d4e0;
+  --muted:     #4a5a72;
+  --text:      #c8daf0;
+  --text2:     #7a92b0;
+  --mono:      'JetBrains Mono', monospace;
+  --cond:      'Barlow Condensed', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--cond);
+  font-size: 15px;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Scanline */
+body::before {
+  content: '';
+  position: fixed; inset: 0; pointer-events: none; z-index: 9999;
+  background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,.04) 3px, rgba(0,0,0,.04) 4px);
+}
+
+/* ── HEADER ─────────────────────────────────────── */
+header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 28px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 100;
+}
+
+.logo {
+  display: flex; align-items: baseline; gap: 10px;
+}
+.logo-main {
+  font-size: 22px; font-weight: 900; letter-spacing: .04em;
+  color: var(--accent); text-transform: uppercase;
+}
+.logo-sub {
+  font-size: 11px; font-weight: 400; color: var(--text2);
+  font-family: var(--mono); letter-spacing: .12em;
+}
+
+.header-right {
+  display: flex; align-items: center; gap: 20px;
+}
+
+#last-updated {
+  font-family: var(--mono); font-size: 10px; color: var(--muted);
+}
+
+.live-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+  animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+/* ── NAV TABS ────────────────────────────────────── */
+nav {
+  display: flex; gap: 0;
+  background: var(--surface);
+  border-bottom: 2px solid var(--border);
+  padding: 0 28px;
+}
+
+.nav-tab {
+  padding: 12px 28px; cursor: pointer;
+  font-size: 15px; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--text2);
+  border-bottom: 3px solid transparent; margin-bottom: -2px;
+  transition: all .2s; user-select: none;
+}
+.nav-tab:hover { color: var(--text); }
+.nav-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.nav-tab .tab-icon { margin-right: 6px; }
+
+/* ── FILTERS ─────────────────────────────────────── */
+.filter-bar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 12px 28px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.filter-label {
+  font-size: 10px; font-weight: 600; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--muted); font-family: var(--mono);
+  margin-right: 2px;
+}
+
+select {
+  background: var(--card); border: 1px solid var(--border2); color: var(--text);
+  font-family: var(--cond); font-size: 13px; font-weight: 600;
+  padding: 6px 28px 6px 10px; border-radius: 4px; cursor: pointer;
+  -webkit-appearance: none; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%234a5a72' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 8px center;
+  transition: border-color .2s;
+}
+select:hover { border-color: var(--accent); }
+select:focus { outline: none; border-color: var(--accent); }
+
+.metric-toggle {
+  display: flex; gap: 0; margin-left: auto;
+  border: 1px solid var(--border2); border-radius: 4px; overflow: hidden;
+}
+.metric-btn {
+  padding: 6px 14px; cursor: pointer; font-family: var(--cond);
+  font-size: 12px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; background: var(--card); color: var(--text2);
+  border: none; transition: all .15s; user-select: none;
+}
+.metric-btn:hover { color: var(--text); }
+.metric-btn.active { background: var(--accent2); color: var(--bg); }
+
+/* ── MAIN LAYOUT ─────────────────────────────────── */
+.content {
+  display: none; padding: 24px 28px; max-width: 1800px;
+}
+.content.active { display: block; }
+
+/* ── KPI ROW ─────────────────────────────────────── */
+.kpi-row {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+  margin-bottom: 24px;
+}
+
+.kpi-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 18px 20px;
+  position: relative; overflow: hidden;
+}
+.kpi-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: var(--accent);
+}
+.kpi-card.green::before { background: var(--green); }
+.kpi-card.red::before   { background: var(--red); }
+.kpi-card.blue::before  { background: var(--blue); }
+
+.kpi-label {
+  font-size: 10px; font-weight: 600; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--muted); font-family: var(--mono);
+  margin-bottom: 10px;
+}
+.kpi-compare {
+  display: flex; gap: 20px; align-items: flex-end;
+}
+.kpi-year {
+  flex: 1;
+}
+.kpi-yr-label {
+  font-size: 10px; color: var(--muted); font-family: var(--mono);
+  margin-bottom: 3px;
+}
+.kpi-val {
+  font-size: 24px; font-weight: 800; line-height: 1; color: var(--text);
+}
+.kpi-unit { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+.kpi-delta {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 13px; font-weight: 700; padding: 4px 10px;
+  border-radius: 3px; white-space: nowrap;
+}
+.kpi-delta.up   { color: var(--red);   background: rgba(232,64,64,.12); }
+.kpi-delta.down { color: var(--green); background: rgba(40,199,111,.12); }
+.kpi-delta.neutral { color: var(--muted); background: rgba(74,90,114,.12); }
+
+/* ── CHARTS ROW ──────────────────────────────────── */
+.charts-row {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  margin-bottom: 20px;
+}
+
+.chart-card {
+  background: var(--card); border: 1px solid var(--border); border-radius: 6px;
+  padding: 20px;
+}
+
+.card-title {
+  font-size: 11px; font-weight: 600; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--muted); font-family: var(--mono);
+  margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
+}
+.card-title::before {
+  content: ''; width: 3px; height: 12px;
+  background: var(--accent); border-radius: 2px;
+}
+canvas { max-height: 260px; }
+
+/* ── TABLES ROW ──────────────────────────────────── */
+.tables-row {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  margin-bottom: 20px;
+}
+
+.table-card {
+  background: var(--card); border: 1px solid var(--border); border-radius: 6px;
+  overflow: hidden;
+}
+.table-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px; font-weight: 600; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--muted); font-family: var(--mono);
+  display: flex; align-items: center; gap: 8px;
+}
+.table-header::before {
+  content: ''; width: 3px; height: 12px;
+  background: var(--accent); border-radius: 2px;
+}
+
+table {
+  width: 100%; border-collapse: collapse;
+}
+th {
+  font-size: 10px; font-weight: 600; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--muted); font-family: var(--mono);
+  padding: 8px 16px; text-align: right; background: var(--card2);
+  border-bottom: 1px solid var(--border);
+}
+th:first-child { text-align: left; }
+
+td {
+  padding: 9px 16px; font-size: 13px; font-weight: 600;
+  border-bottom: 1px solid var(--border); text-align: right;
+  font-family: var(--mono);
+}
+td:first-child { text-align: left; font-family: var(--cond); font-size: 14px; font-weight: 700; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--card2); }
+
+.badge-up   { color: var(--red);   }
+.badge-down { color: var(--green); }
+.badge-neu  { color: var(--muted); }
+
+/* ── BY AREA TABLE ───────────────────────────────── */
+.area-card {
+  background: var(--card); border: 1px solid var(--border); border-radius: 6px;
+  overflow: hidden; margin-bottom: 20px;
+}
+.pulau-header td {
+  background: var(--card2); color: var(--accent);
+  font-family: var(--cond); font-size: 14px; font-weight: 700;
+  letter-spacing: .06em; text-align: left; border-bottom: 1px solid var(--border2);
+}
+
+/* ── LOADING ─────────────────────────────────────── */
+#loading {
+  position: fixed; inset: 0; background: var(--bg); z-index: 9998;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+}
+.load-bar {
+  width: 200px; height: 2px; background: var(--border);
+  border-radius: 1px; overflow: hidden;
+}
+.load-fill {
+  height: 100%; background: var(--accent);
+  animation: loadfill 1.5s ease-out forwards;
+}
+@keyframes loadfill { from{width:0} to{width:100%} }
+.load-text {
+  font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: .12em;
+}
+
+/* ── RESPONSIVE ──────────────────────────────────── */
+@media (max-width: 1100px) {
+  .kpi-row { grid-template-columns: repeat(2,1fr); }
+  .charts-row, .tables-row { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+  .kpi-row { grid-template-columns: 1fr; }
+  header { padding: 12px 16px; }
+  .content { padding: 16px; }
+  nav { padding: 0 16px; }
+  .filter-bar { padding: 10px 16px; }
+}
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="logo-main" style="font-size:28px;">EFC DASHBOARD</div>
+  <div class="load-bar"><div class="load-fill"></div></div>
+  <div class="load-text">LOADING DATA...</div>
+</div>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <span class="logo-main">⚡ External Fleet Cost</span>
+    <span class="logo-sub">NDC — COST ANALYTICS</span>
+  </div>
+  <div class="header-right">
+    <span id="last-updated">—</span>
+    <div class="live-dot" title="Auto-update daily"></div>
+  </div>
+</header>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-tab active" onclick="switchSection('retail')">
+    <span class="tab-icon">🚛</span> Retail NDC
+  </div>
+  <div class="nav-tab" onclick="switchSection('industrial')">
+    <span class="tab-icon">🏭</span> Industrial NDC
+  </div>
+</nav>
+
+<!-- FILTER BAR -->
+<div class="filter-bar">
+  <span class="filter-label">Period</span>
+  <select id="sel-month" onchange="render()">
+    <option value="ALL">All Months</option>
+  </select>
+
+  <span class="filter-label">Owner</span>
+  <select id="sel-owner" onchange="render()">
+    <option value="ALL">All Owners</option>
+  </select>
+
+  <span class="filter-label" id="origin-label">Origin</span>
+  <select id="sel-origin" onchange="render()">
+    <option value="ALL">All Origins</option>
+  </select>
+
+  <div class="metric-toggle">
+    <button class="metric-btn active" onclick="setMetric('cost')">Cost</button>
+    <button class="metric-btn" onclick="setMetric('cbm')">CBM</button>
+    <button class="metric-btn" onclick="setMetric('ratio')">Ratio</button>
+  </div>
+</div>
+
+<!-- RETAIL SECTION -->
+<div class="content active" id="sec-retail">
+  <div class="kpi-row" id="retail-kpi"></div>
+  <div class="charts-row">
+    <div class="chart-card">
+      <div class="card-title">Trend Bulanan — 2025 vs 2026</div>
+      <canvas id="retail-trend"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="card-title">By Pulau — Komparasi</div>
+      <canvas id="retail-pulau"></canvas>
+    </div>
+  </div>
+  <div class="tables-row">
+    <div class="table-card">
+      <div class="table-header">By LC Owner</div>
+      <table id="retail-owner-tbl"></table>
+    </div>
+    <div class="table-card">
+      <div class="table-header">By Origin</div>
+      <table id="retail-origin-tbl"></table>
+    </div>
+  </div>
+  <div class="area-card">
+    <div class="table-header">Detail By Area / Provinsi</div>
+    <table id="retail-area-tbl"></table>
+  </div>
+</div>
+
+<!-- INDUSTRIAL SECTION -->
+<div class="content" id="sec-industrial">
+  <div class="kpi-row" id="ind-kpi"></div>
+  <div class="charts-row">
+    <div class="chart-card">
+      <div class="card-title">Trend Bulanan — 2025 vs 2026</div>
+      <canvas id="ind-trend"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="card-title">By Pulau — Komparasi</div>
+      <canvas id="ind-pulau"></canvas>
+    </div>
+  </div>
+  <div class="tables-row">
+    <div class="table-card">
+      <div class="table-header">By LC Owner</div>
+      <table id="ind-owner-tbl"></table>
+    </div>
+    <div class="table-card">
+      <div class="table-header">By Origin</div>
+      <table id="ind-origin-tbl"></table>
+    </div>
+  </div>
+  <div class="area-card">
+    <div class="table-header">Detail By Area / Provinsi</div>
+    <table id="ind-area-tbl"></table>
+  </div>
+</div>
+
+<script>
+// ── GLOBALS ─────────────────────────────────────────────────────────────────
+let DATA = null;
+let currentSection = 'retail';
+let currentMetric  = 'cost';
+const charts = {};
+
+const MONTH_ORDER = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const PULAU_ORDER = ['Jawa','Sumatera','Kalimantan','Sulawesi','Bali Nusra','Maluku','Papua'];
+
+const FMT = {
+  cost:  v => 'Rp ' + (v >= 1e9  ? (v/1e9).toFixed(2)+'B'  : v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v.toLocaleString()),
+  cbm:   v => v.toFixed(1) + ' CBM',
+  ratio: v => 'Rp ' + v.toLocaleString(undefined,{maximumFractionDigits:0}) + '/CBM',
+};
+
+const COLORS = {
+  '2025': 'rgba(240,165,0,0.85)',
+  '2026': 'rgba(59,157,232,0.85)',
+  '2025b': 'rgba(240,165,0,0.25)',
+  '2026b': 'rgba(59,157,232,0.25)',
+};
+
+// ── FETCH DATA ───────────────────────────────────────────────────────────────
+async function loadData() {
+  try {
+    const r = await fetch('data/data.json?t=' + Date.now());
+    DATA = await r.json();
+    document.getElementById('last-updated').textContent =
+      'Updated: ' + new Date(DATA.lastUpdated).toLocaleString('id-ID', {timeZone:'Asia/Jakarta'});
+  } catch (e) {
+    console.error('Failed to load data.json', e);
+    // Fallback: show error state
+    document.getElementById('last-updated').textContent = 'Data load failed';
+  }
+}
+
+// ── FILTER HELPERS ───────────────────────────────────────────────────────────
+function getFilters() {
+  return {
+    month:  document.getElementById('sel-month').value,
+    owner:  document.getElementById('sel-owner').value,
+    origin: document.getElementById('sel-origin').value,
+  };
+}
+
+function populateFilters() {
+  if (!DATA) return;
+  const sec = DATA[currentSection];
+  const meta = sec.meta;
+
+  // Months: union of both years
+  const allMonths = [...new Set([
+    ...Object.keys(sec['2025'].byMonth || {}),
+    ...Object.keys(sec['2026'].byMonth || {}),
+  ])].sort((a,b) => MONTH_ORDER.indexOf(a) - MONTH_ORDER.indexOf(b));
+
+  const mSel = document.getElementById('sel-month');
+  const curM = mSel.value;
+  mSel.innerHTML = '<option value="ALL">All Months</option>' +
+    allMonths.map(m => `<option value="${m}">${m}</option>`).join('');
+  if (allMonths.includes(curM)) mSel.value = curM;
+
+  const oSel = document.getElementById('sel-owner');
+  const curO = oSel.value;
+  oSel.innerHTML = '<option value="ALL">All Owners</option>' +
+    meta.owners.map(o => `<option value="${o}">${o}</option>`).join('');
+  if (meta.owners.includes(curO)) oSel.value = curO;
+
+  const rSel = document.getElementById('sel-origin');
+  const curR = rSel.value;
+  rSel.innerHTML = '<option value="ALL">All Origins</option>' +
+    meta.origins.map(o => `<option value="${o}">${o}</option>`).join('');
+  if (meta.origins.includes(curR)) rSel.value = curR;
+}
+
+// ── DATA FILTER / AGG ────────────────────────────────────────────────────────
+// We re-aggregate from pre-computed keys
+// NOTE: Since data.json already has aggregated data (no raw rows),
+// filtering is done server-side by adjusting what we display.
+// For owner/origin filtering, we need per-year combined breakdowns.
+
+function getYearData(year) {
+  if (!DATA) return null;
+  const sec = DATA[currentSection];
+  return sec[String(year)] || null;
+}
+
+// Simple filter on pre-agg: if filter=ALL, use total; else show subset
+function metricVal(obj) {
+  if (!obj) return 0;
+  return obj[currentMetric] || 0;
+}
+
+// ── RENDER KPIs ──────────────────────────────────────────────────────────────
+function renderKPI(containerId) {
+  const f = getFilters();
+  const d25 = getYearData(2025);
+  const d26 = getYearData(2026);
+
+  // Compute filtered totals
+  function sumMetric(d, dimension, filterKey) {
+    if (!d || !d[dimension]) return 0;
+    if (filterKey === 'ALL') return metricVal(d.total);
+    return metricVal(d[dimension][filterKey]) || 0;
+  }
+
+  let v25, v26;
+  if (f.owner !== 'ALL') {
+    v25 = metricVal(d25?.byOwner?.[f.owner]);
+    v26 = metricVal(d26?.byOwner?.[f.owner]);
+  } else if (f.origin !== 'ALL') {
+    v25 = metricVal(d25?.byOrigin?.[f.origin]);
+    v26 = metricVal(d26?.byOrigin?.[f.origin]);
+  } else if (f.month !== 'ALL') {
+    v25 = metricVal(d25?.byMonth?.[f.month]);
+    v26 = metricVal(d26?.byMonth?.[f.month]);
+  } else {
+    v25 = metricVal(d25?.total);
+    v26 = metricVal(d26?.total);
+  }
+
+  function kpiCard(label, v25, v26, cls='') {
+    const chg = v25 > 0 ? ((v26 - v25) / v25 * 100) : 0;
+    const dir  = chg > 2 ? 'up' : chg < -2 ? 'down' : 'neutral';
+    const arrow= chg > 0 ? '▲' : chg < 0 ? '▼' : '—';
+    return `
+    <div class="kpi-card ${cls}">
+      <div class="kpi-label">${label}</div>
+      <div class="kpi-compare">
+        <div class="kpi-year">
+          <div class="kpi-yr-label">2025</div>
+          <div class="kpi-val" style="color:var(--accent)">${FMT[currentMetric](v25)}</div>
+        </div>
+        <div class="kpi-year">
+          <div class="kpi-yr-label">2026</div>
+          <div class="kpi-val" style="color:var(--blue)">${FMT[currentMetric](v26)}</div>
+        </div>
+        <div class="kpi-delta ${dir}">${arrow} ${Math.abs(chg).toFixed(1)}%</div>
+      </div>
+    </div>`;
+  }
+
+  // 4 KPIs: Total cost, total CBM, ratio, rows
+  function getV(d, metric) {
+    if (!d?.total) return 0;
+    if (f.owner !== 'ALL') return d.byOwner?.[f.owner]?.[metric] || 0;
+    if (f.origin !== 'ALL') return d.byOrigin?.[f.origin]?.[metric] || 0;
+    if (f.month !== 'ALL')  return d.byMonth?.[f.month]?.[metric] || 0;
+    return d.total[metric] || 0;
+  }
+
+  const c25=getV(d25,'cost'), c26=getV(d26,'cost');
+  const b25=getV(d25,'cbm'),  b26=getV(d26,'cbm');
+  const r25=getV(d25,'ratio'),r26=getV(d26,'ratio');
+
+  const container = document.getElementById(containerId);
+  container.innerHTML =
+    kpiCard('Total Cost', c25, c26) +
+    kpiCard('Total Volume (CBM)', b25, b26, 'blue') +
+    kpiCard('Cost / CBM Ratio', r25, r26, 'red') +
+    `<div class="kpi-card">
+      <div class="kpi-label">Data Rows</div>
+      <div class="kpi-compare">
+        <div class="kpi-year">
+          <div class="kpi-yr-label">2025</div>
+          <div class="kpi-val" style="color:var(--accent);font-size:22px">${(d25?.total?.rows||0).toLocaleString()}</div>
+          <div class="kpi-unit">shipments</div>
+        </div>
+        <div class="kpi-year">
+          <div class="kpi-yr-label">2026</div>
+          <div class="kpi-val" style="color:var(--blue);font-size:22px">${(d26?.total?.rows||0).toLocaleString()}</div>
+          <div class="kpi-unit">shipments</div>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ── RENDER TREND CHART ───────────────────────────────────────────────────────
+function renderTrend(canvasId) {
+  const d25 = getYearData(2025);
+  const d26 = getYearData(2026);
+  const months = MONTH_ORDER.filter(m =>
+    d25?.byMonth?.[m] || d26?.byMonth?.[m]
+  );
+
+  const vals25 = months.map(m => d25?.byMonth?.[m]?.[currentMetric] || 0);
+  const vals26 = months.map(m => d26?.byMonth?.[m]?.[currentMetric] || 0);
+
+  const canvas = document.getElementById(canvasId);
+  if (charts[canvasId]) charts[canvasId].destroy();
+  charts[canvasId] = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels: months,
+      datasets: [
+        { label:'2025', data:vals25, borderColor:COLORS['2025'], backgroundColor:COLORS['2025b'],
+          borderWidth:2.5, pointRadius:4, pointHoverRadius:6, tension:.35, fill:true },
+        { label:'2026', data:vals26, borderColor:COLORS['2026'], backgroundColor:COLORS['2026b'],
+          borderWidth:2.5, pointRadius:4, pointHoverRadius:6, tension:.35, fill:true },
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:true,
+      plugins: { legend:{labels:{color:'#7a92b0',font:{family:'JetBrains Mono',size:11}}},
+                 tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${FMT[currentMetric](c.raw)}`}} },
+      scales: {
+        x:{ ticks:{color:'#4a5a72',font:{family:'JetBrains Mono',size:10}}, grid:{color:'#1a2235'} },
+        y:{ ticks:{color:'#4a5a72',font:{family:'JetBrains Mono',size:10},
+                   callback: v => currentMetric==='cost' ? 'Rp'+(v/1e9).toFixed(1)+'B' : v.toLocaleString()},
+            grid:{color:'#1a2235'} }
+      }
+    }
+  });
+}
+
+// ── RENDER PULAU CHART ───────────────────────────────────────────────────────
+function renderPulauChart(canvasId) {
+  const d25 = getYearData(2025);
+  const d26 = getYearData(2026);
+  const pulaus = PULAU_ORDER.filter(p => d25?.byPulau?.[p] || d26?.byPulau?.[p]);
+
+  const v25 = pulaus.map(p => d25?.byPulau?.[p]?.[currentMetric] || 0);
+  const v26 = pulaus.map(p => d26?.byPulau?.[p]?.[currentMetric] || 0);
+
+  const canvas = document.getElementById(canvasId);
+  if (charts[canvasId]) charts[canvasId].destroy();
+  charts[canvasId] = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: pulaus,
+      datasets: [
+        { label:'2025', data:v25, backgroundColor:COLORS['2025'], borderRadius:3, maxBarThickness:32 },
+        { label:'2026', data:v26, backgroundColor:COLORS['2026'], borderRadius:3, maxBarThickness:32 },
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:true,
+      plugins:{ legend:{labels:{color:'#7a92b0',font:{family:'JetBrains Mono',size:11}}},
+                tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${FMT[currentMetric](c.raw)}`}} },
+      scales:{
+        x:{ ticks:{color:'#4a5a72',font:{family:'JetBrains Mono',size:10}}, grid:{color:'#1a2235'} },
+        y:{ ticks:{color:'#4a5a72',font:{family:'JetBrains Mono',size:10},
+                   callback: v => currentMetric==='cost' ? 'Rp'+(v/1e9).toFixed(1)+'B' : v.toLocaleString()},
+            grid:{color:'#1a2235'} }
+      }
+    }
+  });
+}
+
+// ── RENDER TABLE ─────────────────────────────────────────────────────────────
+function renderCompTable(tbId, dataKey) {
+  const d25 = getYearData(2025);
+  const d26 = getYearData(2026);
+  const map25 = d25?.[dataKey] || {};
+  const map26 = d26?.[dataKey] || {};
+  const keys = [...new Set([...Object.keys(map25), ...Object.keys(map26)])].sort();
+
+  const label = currentMetric === 'cost' ? 'Cost (Rp)' : currentMetric === 'cbm' ? 'CBM' : 'Ratio';
+  const tb = document.getElementById(tbId);
+  if (!tb) return;
+
+  let html = `<thead><tr>
+    <th>${dataKey === 'byOwner' ? 'LC Owner' : 'Origin'}</th>
+    <th>2025 ${label}</th>
+    <th>2026 ${label}</th>
+    <th>Δ%</th>
+  </tr></thead><tbody>`;
+
+  for (const k of keys) {
+    const v25 = map25[k]?.[currentMetric] || 0;
+    const v26 = map26[k]?.[currentMetric] || 0;
+    const chg = v25 > 0 ? ((v26-v25)/v25*100) : 0;
+    const cls = chg > 2 ? 'badge-up' : chg < -2 ? 'badge-down' : 'badge-neu';
+    const arrow = chg > 0 ? '▲' : chg < 0 ? '▼' : '—';
+    html += `<tr>
+      <td>${k}</td>
+      <td>${FMT[currentMetric](v25)}</td>
+      <td>${FMT[currentMetric](v26)}</td>
+      <td class="${cls}">${arrow} ${Math.abs(chg).toFixed(1)}%</td>
+    </tr>`;
+  }
+  html += '</tbody>';
+  tb.innerHTML = html;
+}
+
+// ── RENDER AREA TABLE ────────────────────────────────────────────────────────
+function renderAreaTable(tbId) {
+  const d25 = getYearData(2025);
+  const d26 = getYearData(2026);
+  const map25 = d25?.byArea || {};
+  const map26 = d26?.byArea || {};
+  const pulaus = PULAU_ORDER.filter(p => map25[p] || map26[p]);
+
+  const tb = document.getElementById(tbId);
+  if (!tb) return;
+
+  let html = `<thead><tr>
+    <th>Area / Provinsi</th>
+    <th>2025</th><th>2026</th><th>Δ%</th>
+  </tr></thead><tbody>`;
+
+  for (const pulau of pulaus) {
+    const areas25 = map25[pulau] || {};
+    const areas26 = map26[pulau] || {};
+    const allAreas = [...new Set([...Object.keys(areas25),...Object.keys(areas26)])].sort();
+
+    const tot25 = allAreas.reduce((s,a)=>s+(areas25[a]?.[currentMetric]||0),0);
+    const tot26 = allAreas.reduce((s,a)=>s+(areas26[a]?.[currentMetric]||0),0);
+    const tchg  = tot25>0?((tot26-tot25)/tot25*100):0;
+    const tcls  = tchg>2?'badge-up':tchg<-2?'badge-down':'badge-neu';
+    const tarr  = tchg>0?'▲':tchg<0?'▼':'—';
+
+    html += `<tr class="pulau-header">
+      <td colspan="4">
+        📍 ${pulau}
+        &nbsp;&nbsp;
+        <span style="font-size:12px;font-family:var(--mono);font-weight:400;color:var(--muted)">
+          2025: ${FMT[currentMetric](tot25)} &nbsp;→&nbsp; 2026: ${FMT[currentMetric](tot26)}
+          &nbsp;<span class="${tcls}">${tarr}${Math.abs(tchg).toFixed(1)}%</span>
+        </span>
+      </td>
+    </tr>`;
+
+    for (const area of allAreas) {
+      const v25 = areas25[area]?.[currentMetric]||0;
+      const v26 = areas26[area]?.[currentMetric]||0;
+      const chg = v25>0?((v26-v25)/v25*100):0;
+      const cls = chg>2?'badge-up':chg<-2?'badge-down':'badge-neu';
+      const arrow= chg>0?'▲':chg<0?'▼':'—';
+      html += `<tr>
+        <td style="padding-left:28px">${area}</td>
+        <td>${FMT[currentMetric](v25)}</td>
+        <td>${FMT[currentMetric](v26)}</td>
+        <td class="${cls}">${arrow} ${Math.abs(chg).toFixed(1)}%</td>
+      </tr>`;
+    }
+  }
+
+  html += '</tbody>';
+  tb.innerHTML = html;
+}
+
+// ── MAIN RENDER ──────────────────────────────────────────────────────────────
+function render() {
+  if (!DATA) return;
+  populateFilters();
+
+  if (currentSection === 'retail') {
+    renderKPI('retail-kpi');
+    renderTrend('retail-trend');
+    renderPulauChart('retail-pulau');
+    renderCompTable('retail-owner-tbl', 'byOwner');
+    renderCompTable('retail-origin-tbl', 'byOrigin');
+    renderAreaTable('retail-area-tbl');
+  } else {
+    renderKPI('ind-kpi');
+    renderTrend('ind-trend');
+    renderPulauChart('ind-pulau');
+    renderCompTable('ind-owner-tbl', 'byOwner');
+    renderCompTable('ind-origin-tbl', 'byOrigin');
+    renderAreaTable('ind-area-tbl');
+  }
+}
+
+// ── SWITCH SECTION ───────────────────────────────────────────────────────────
+function switchSection(sec) {
+  currentSection = sec;
+  document.querySelectorAll('.nav-tab').forEach((t,i) => {
+    t.classList.toggle('active', (i===0&&sec==='retail')||(i===1&&sec==='industrial'));
+  });
+  document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
+  document.getElementById('sec-' + sec).classList.add('active');
+  // Reset filters
+  document.getElementById('sel-month').value  = 'ALL';
+  document.getElementById('sel-owner').value  = 'ALL';
+  document.getElementById('sel-origin').value = 'ALL';
+  render();
+}
+
+// ── SET METRIC ───────────────────────────────────────────────────────────────
+function setMetric(m) {
+  currentMetric = m;
+  document.querySelectorAll('.metric-btn').forEach(b => {
+    b.classList.toggle('active', b.textContent.toLowerCase() === m.toLowerCase() ||
+      (m==='ratio' && b.textContent==='Ratio'));
+  });
+  render();
+}
+
+// ── INIT ─────────────────────────────────────────────────────────────────────
+async function init() {
+  await loadData();
+  document.getElementById('loading').style.display = 'none';
+  render();
+}
+
+init();
+</script>
+</body>
+</html>
