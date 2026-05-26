@@ -1,0 +1,29 @@
+name: Update Dashboard Data
+
+on:
+  schedule:
+    - cron: '0 1 * * *'
+  workflow_dispatch:
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - name: Fetch data
+        env:
+          RETAIL_2025_URL:     ${{ secrets.RETAIL_2025_URL }}
+          RETAIL_2026_URL:     ${{ secrets.RETAIL_2026_URL }}
+          INDUSTRIAL_2025_URL: ${{ secrets.INDUSTRIAL_2025_URL }}
+          INDUSTRIAL_2026_URL: ${{ secrets.INDUSTRIAL_2026_URL }}
+        run: python scripts/fetch_data.py
+      - name: Commit & push
+        run: |
+          git config --local user.email "actions@github.com"
+          git config --local user.name "EFC Bot"
+          git add data/data.json
+          git diff --staged --quiet || git commit -m "🔄 Auto-update: $(TZ='Asia/Jakarta' date +'%Y-%m-%d %H:%M WIB')" && git push
